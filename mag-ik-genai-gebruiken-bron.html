@@ -1,0 +1,151 @@
+<div id="genai-beslisboom" aria-label="Interactieve beslisboom Mag ik GenAI gebruiken">
+  <h2>Mag ik GenAI gebruiken?</h2>
+  <div id="genai-inhoud" aria-live="polite"></div>
+</div>
+
+<script>
+(() => {
+  const root = document.getElementById('genai-beslisboom');
+  const content = root.querySelector('#genai-inhoud');
+  const validSituations = ['examen', 'opdracht', 'studeren'];
+  let state = { situation: null, answer: null };
+
+  function restore(value) {
+    const saved = value?.modelContent || value;
+    if (!saved || !validSituations.includes(saved.situation)) return;
+    state.situation = saved.situation;
+    state.answer = ['ja', 'nee'].includes(saved.answer) ? saved.answer : null;
+    if (state.situation === 'studeren') state.answer = null;
+    render();
+  }
+
+  function save() {
+    window.openai?.setWidgetState?.({ modelContent: { ...state }, privateContent: null }).catch(() => {});
+  }
+
+  function button(label, action, emphasis = false) {
+    const el = document.createElement('button');
+    el.type = 'button';
+    el.className = emphasis ? 'btn btn-primary' : 'btn';
+    el.textContent = label;
+    el.addEventListener('click', action);
+    return el;
+  }
+
+  function paragraph(text, className = '') {
+    const p = document.createElement('p');
+    if (className) p.className = className;
+    p.textContent = text;
+    return p;
+  }
+
+  function heading(text) {
+    const h = document.createElement('h3');
+    h.textContent = text;
+    return h;
+  }
+
+  function setSituation(value) {
+    state = { situation: value, answer: null };
+    save();
+    render();
+  }
+
+  function setAnswer(value) {
+    state.answer = value;
+    save();
+    render();
+  }
+
+  function startOver() {
+    state = { situation: null, answer: null };
+    save();
+    render();
+  }
+
+  function render() {
+    content.replaceChildren();
+
+    if (!state.situation) {
+      content.append(heading('In welke situatie zit je?'));
+      const choices = document.createElement('div');
+      choices.className = 'viz-grid';
+      choices.append(
+        button('Toets of examen', () => setSituation('examen')),
+        button('Evaluatie-opdracht', () => setSituation('opdracht')),
+        button('Oefenen of studeren', () => setSituation('studeren'))
+      );
+      content.append(choices);
+      return;
+    }
+
+    const names = {
+      examen: 'Toets of examen',
+      opdracht: 'Evaluatie-opdracht',
+      studeren: 'Oefenen of studeren'
+    };
+    content.append(paragraph(names[state.situation], 'text-muted'));
+
+    if (state.situation === 'studeren') {
+      const result = document.createElement('section');
+      result.className = 'card';
+      result.setAttribute('aria-label', 'Antwoord');
+      result.append(
+        heading('GenAI gebruiken'),
+        paragraph('Gebruik GenAI op een verstandige manier en gebruik alleen tools die door UCLL ondersteund worden.'),
+        paragraph('Gebruik GenAI bijvoorbeeld als tutor bij het leren.')
+      );
+      content.append(result);
+      const nav = document.createElement('div');
+      nav.className = 'viz-row';
+      nav.append(button('Andere situatie kiezen', startOver));
+      content.append(nav);
+      return;
+    }
+
+    const question = state.situation === 'examen'
+      ? 'Heeft de lector expliciet aangegeven dat GenAI mag?'
+      : 'Heeft de lector aangegeven dat GenAI niet mag?';
+    content.append(heading(question));
+
+    if (!state.answer) {
+      const choices = document.createElement('div');
+      choices.className = 'viz-row';
+      choices.append(
+        button('Ja', () => setAnswer('ja')),
+        button('Nee', () => setAnswer('nee'))
+      );
+      content.append(choices);
+    } else {
+      let answer;
+      if (state.situation === 'examen') {
+        answer = state.answer === 'ja'
+          ? 'Je mag GenAI gebruiken.'
+          : 'Je mag geen GenAI gebruiken.';
+      } else {
+        answer = state.answer === 'ja'
+          ? 'Je mag GenAI niet gebruiken.'
+          : 'Je mag GenAI gebruiken.';
+      }
+      const result = document.createElement('section');
+      result.className = 'card';
+      result.setAttribute('aria-label', 'Antwoord');
+      result.append(heading(answer));
+      content.append(result);
+      const nav = document.createElement('div');
+      nav.className = 'viz-row';
+      nav.append(
+        button('Antwoord wijzigen', () => setAnswer(null)),
+        button('Andere situatie kiezen', startOver)
+      );
+      content.append(nav);
+    }
+  }
+
+  render();
+  restore(window.openai?.widgetState);
+  window.addEventListener('openai:set_globals', event => {
+    if (event.detail?.globals?.widgetState) restore(event.detail.globals.widgetState);
+  });
+})();
+</script>
